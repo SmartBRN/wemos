@@ -8,6 +8,7 @@
 #define HTTP_REPLY_OK "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>200 OK</html>\n"
 #define HTTP_REPLY_BAD_REQUEST "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>400 Bad Request</html>\n"
 
+#define URL_RELAY_REQUEST  "/relay"
 #define URL_SWITCH_RELAY_0 "/relay/0"
 #define URL_SWITCH_RELAY_1 "/relay/1"
 #define URL_SWITCH_RELAY_2 "/relay/2"
@@ -38,13 +39,20 @@ void setupWiFi() {
   WiFi.config(ip, gateway, subnet);
 
   WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+  while( WiFi.waitForConnectResult() != WL_CONNECTED ) {
     Serial.println("WiFi connection failed. Retry...");
     delay(10000);
     ESP.restart();
   }
   Serial.print("WiFi is ready. Local ip: ");
   Serial.println(WiFi.localIP());
+}
+
+void setupWiFiServer() {
+  server.begin();
+  Serial.print("Server is listening at: http://");
+  Serial.print(WiFi.localIP());
+  Serial.println("/");
 }
 
 void setup() {
@@ -55,13 +63,7 @@ void setup() {
   Serial.println("Serial port is ready.");
 
   setupWiFi();
-
-
-  server.begin();
-  Serial.print("Server is listening at: http://");
-  Serial.print(WiFi.localIP());
-  Serial.println("/");
-
+  setupWiFiServer();
   setupPins();
 
   Serial.println("Device is ready.");
@@ -81,24 +83,26 @@ void handleClientRequest() {
   Serial.println(request);
   client.flush();
 
-  int relayID = -1;
+  if( request.indexOf(URL_RELAY_REQUEST) != -1 ) {
+    handleRelayRequest(client, request);
+  }
+}
 
+void handleRelayRequest(WiFiClient& client, const String& request) {
+  int relayID = -1;
   if ( request.indexOf(URL_SWITCH_RELAY_0) != -1 ) {
     relayID = 0;
   } else if ( request.indexOf(URL_SWITCH_RELAY_1) != -1 ) {
     relayID = 1;
   } else if ( request.indexOf(URL_SWITCH_RELAY_2) != -1 ) {
     relayID = 2;
-  }
-
-  if ( relayID == -1 ) {
-    client.print(HTTP_REPLY_BAD_REQUEST);
   } else {
-    relayState[relayID] = !relayState[relayID];
-    digitalWrite(relayPins[relayID], (relayState[relayID] ? HIGH : LOW));
-    client.print(HTTP_REPLY_OK);
+    client.print(HTTP_REPLY_BAD_REQUEST);
+    return;    
   }
-
+  relayState[relayID] = !relayState[relayID];
+  digitalWrite(relayPins[relayID], (relayState[relayID] ? HIGH : LOW));
+  client.print(HTTP_REPLY_OK);
   delay(1);
 }
 

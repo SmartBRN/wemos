@@ -1,8 +1,15 @@
 #define MEASURE_DHT
 #define ENABLE_SERVER
+//#define REGISTER_DEVICE
+
+#include <ESP8266HTTPClient.h>
+#define DEVICE_IP "192.168.0.100"
+#define DEVICE_ID "0"
+#define DEVICE_REGISTER_ROUTINE "0.0.0.0/register_device.php"
 
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
+
 
 #ifdef ENABLE_SERVER
 #include <ESP8266WebServer.h>
@@ -27,13 +34,20 @@ float temperature;
 const char* ssid = "DIR-620";
 const char* password = "76543210";
 
+const String availableSensors[] = { "temperature", "humidity" };
+const String availableControls[] = { "relay", "relay" };
+const int numberOfSensors = 2;
+const int numberOfControls = 2;
+
 #define URL_SWITCH_RELAY  "/relay"
 #define PIN_RELAY_0 D5
 #define PIN_RELAY_1 D6
 bool relayState[] = { false, false };
 int relayPin[] = { PIN_RELAY_0, PIN_RELAY_1 };
 
+#ifdef ENABLE_SERVER
 ESP8266WebServer server(80);
+#endif
 
 void setupPins() {
   pinMode(PIN_RELAY_0, OUTPUT);
@@ -87,6 +101,32 @@ void setupServer() {
 }
 #endif
 
+#ifdef REGISTER_DEVICE
+void registerDevice() {
+  String json;
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["ip"] = WiFi.localIP().toString();
+  root["id"] = DEVICE_ID;
+  JsonArray& sensors = root.createNestedArray("sensors");
+  for(int i = 0; i < numberOfSensors; ++i) {
+    sensors.add(availableSensors[i]);
+  }
+  JsonArray& controls = root.createNestedArray("controls");
+  for(int i = 0; i < numberOfControls; ++i) {
+    controls.add(availableControls[i]);
+  }
+  root.printTo(json);  
+  Serial.println(json);
+  
+  HTTPClient http;
+  http.begin(DEVICE_REGISTER_ROUTINE);
+  http.addHeader("Content-Type", "application/json");
+  http.POST(json);
+  http.end();  
+}
+#endif
+
 void setup() {
   Serial.begin(9600);
   while (!Serial) {
@@ -105,6 +145,10 @@ void setup() {
   #ifdef MEASURE_DHT
   dht.begin();
   Serial.println("DHT sensor is ready.");
+  #endif
+
+  #ifdef REGISTER_DEVICE
+  registerDevice();
   #endif
 
   Serial.println("Device is ready.");

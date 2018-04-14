@@ -99,7 +99,7 @@ void setupServer() {
       server.send(404, "text/plain", "404 Not Found"); 
     } else {
       relayState[relayID] = (state == "on");
-      digitalWrite(relayPin[relayID], (relayState[relayID] ? HIGH : LOW));
+      digitalWrite(relayPin[relayID], (relayState[relayID] ? LOW : HIGH));
       server.send(200, "text/plain", "200 OK");
     }    
   });

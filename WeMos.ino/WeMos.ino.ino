@@ -1,7 +1,14 @@
-#include <ArduinoJson.h>
-#include <DHT.h>
-#include <ESP8266WiFi.h>
+//#define MEASURE_DHT
 
+#include <ArduinoJson.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+#ifdef MEASURE_DHT
+#include <DHT.h>
+#endif
+
+#ifdef MEASURE_DHT
 #define DHTTYPE DHT22
 #define PIN_DHT D7
 #define DHT_TICKER_INTERVAL 5.0
@@ -9,24 +16,19 @@
 DHT dht(PIN_DHT, DHTTYPE);
 float humidity;
 float temperature;
-
-#define HTTP_REPLY_OK "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>200 OK</html>\n"
-#define HTTP_REPLY_BAD_REQUEST "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>400 Bad Request</html>\n"
+#endif
 
 const char* ssid = "DIR-620";
 const char* password = "76543210";
 
-#define URL_RELAY_REQUEST  "/relay"
-#define URL_SWITCH_RELAY_0 "/relay/0"
-#define URL_SWITCH_RELAY_1 "/relay/1"
-#define URL_SWITCH_RELAY_2 "/relay/2"
+#define URL_SWITCH_RELAY  "/relay"
 #define PIN_RELAY_0 D4
 #define PIN_RELAY_1 D5
 #define PIN_RELAY_2 D6
 bool relayState[] = { false, false, false };
-int relayPins[] = { PIN_RELAY_0, PIN_RELAY_1, PIN_RELAY_2 };
+int relayPin[] = { PIN_RELAY_0, PIN_RELAY_1, PIN_RELAY_2 };
 
-WiFiServer server(80);
+ESP8266WebServer server(80);
 
 void setupPins() {
   pinMode(PIN_RELAY_0, OUTPUT);
@@ -53,14 +55,22 @@ void setupWiFi() {
 }
 
 void setupWiFiServer() {
+  server.onNotFound([](){ server.send(404, "text/plain", "404 Not Found"); });
+  server.on(URL_SWITCH_RELAY, [](){
+    int relayID = server.arg("id").toInt();
+    if( relayID < 0 || relayID > 2 ) {
+      server.send(404, "text/plain", "404 Not Found"); 
+    } else {
+      relayState[relayID] = !relayState[relayID];
+      digitalWrite(relayPin[relayID], (relayState[relayID] ? HIGH : LOW));
+      server.send(200, "text/plain", "200 OK");
+    }    
+  });
+  
   server.begin();
   Serial.print("Server is listening at: http://");
   Serial.print(WiFi.localIP());
   Serial.println("/");  
-}
-
-void test() {
-  Serial.println("GOOD");
 }
 
 void setup() {
@@ -74,48 +84,15 @@ void setup() {
   setupWiFiServer();
   setupPins();
 
+  #ifdef MEASURE_DHT
   dht.begin();
+  Serial.println("DHT sensor is ready.");
+  #endif
 
   Serial.println("Device is ready.");
 }
 
-void handleClientRequest() {
-  WiFiClient client = server.available();
-  if (!client) {
-    return;
-  }
-
-  while (!client.available()) {
-    delay(1);
-  }
-
-  String request = client.readStringUntil('\r');
-  Serial.println(request);
-  client.flush();
-
-  if( request.indexOf(URL_RELAY_REQUEST) != -1 ) {
-    handleRelayRequest(client, request);
-  }
-}
-
-void handleRelayRequest(WiFiClient& client, const String& request) {
-  int relayID = -1;
-  if ( request.indexOf(URL_SWITCH_RELAY_0) != -1 ) {
-    relayID = 0;
-  } else if ( request.indexOf(URL_SWITCH_RELAY_1) != -1 ) {
-    relayID = 1;
-  } else if ( request.indexOf(URL_SWITCH_RELAY_2) != -1 ) {
-    relayID = 2;
-  } else {
-    client.print(HTTP_REPLY_BAD_REQUEST);
-    return;    
-  }
-  relayState[relayID] = !relayState[relayID];
-  digitalWrite(relayPins[relayID], (relayState[relayID] ? HIGH : LOW));
-  client.print(HTTP_REPLY_OK);
-  delay(1);
-}
-
+#ifdef MEASURE_DHT
 void measureDht() {
   temperature = dht.readTemperature();
   humidity = dht.readHumidity();
@@ -127,10 +104,13 @@ void measureDht() {
   root["humidity"] = humidity;
   root.prettyPrintTo(Serial);
 }
+#endif
 
 void loop() {
+  #ifdef MEASURE_DHT
   if( millis() % DHT_INTERVAL == 0 ) {
     measureDht();
   }
-  handleClientRequest();
+  #endif
+  server.handleClient();
 }

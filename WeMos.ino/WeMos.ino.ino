@@ -1,24 +1,28 @@
+#include <ArduinoJson.h>
 #include <DHT.h>
 #include <ESP8266WiFi.h>
-#include <Ticker.h>
 
 #define DHTTYPE DHT22
-#define PIN_DHT D3
+#define PIN_DHT D7
+#define DHT_TICKER_INTERVAL 5.0
+#define DHT_INTERVAL 5000
+DHT dht(PIN_DHT, DHTTYPE);
+float humidity;
+float temperature;
 
 #define HTTP_REPLY_OK "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>200 OK</html>\n"
 #define HTTP_REPLY_BAD_REQUEST "HTTP/1.1 400 Bad Request\r\nContent-Type: text/html\r\n\r\n<!DOCTYPE HTML>\r\n<html>400 Bad Request</html>\n"
+
+const char* ssid = "DIR-620";
+const char* password = "76543210";
 
 #define URL_RELAY_REQUEST  "/relay"
 #define URL_SWITCH_RELAY_0 "/relay/0"
 #define URL_SWITCH_RELAY_1 "/relay/1"
 #define URL_SWITCH_RELAY_2 "/relay/2"
-
-const char* ssid = "DIR-620";
-const char* password = "76543210";
-
-#define PIN_RELAY_0 D5
-#define PIN_RELAY_1 D6
-#define PIN_RELAY_2 D7
+#define PIN_RELAY_0 D4
+#define PIN_RELAY_1 D5
+#define PIN_RELAY_2 D6
 bool relayState[] = { false, false, false };
 int relayPins[] = { PIN_RELAY_0, PIN_RELAY_1, PIN_RELAY_2 };
 
@@ -52,7 +56,11 @@ void setupWiFiServer() {
   server.begin();
   Serial.print("Server is listening at: http://");
   Serial.print(WiFi.localIP());
-  Serial.println("/");
+  Serial.println("/");  
+}
+
+void test() {
+  Serial.println("GOOD");
 }
 
 void setup() {
@@ -65,6 +73,8 @@ void setup() {
   setupWiFi();
   setupWiFiServer();
   setupPins();
+
+  dht.begin();
 
   Serial.println("Device is ready.");
 }
@@ -106,6 +116,21 @@ void handleRelayRequest(WiFiClient& client, const String& request) {
   delay(1);
 }
 
+void measureDht() {
+  temperature = dht.readTemperature();
+  humidity = dht.readHumidity();
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["sensor"] = "dht";
+  root["status"] = (isnan(temperature) || isnan(humidity) ? "failed" : "success");
+  root["temperature"] = temperature;
+  root["humidity"] = humidity;
+  root.prettyPrintTo(Serial);
+}
+
 void loop() {
+  if( millis() % DHT_INTERVAL == 0 ) {
+    measureDht();
+  }
   handleClientRequest();
 }

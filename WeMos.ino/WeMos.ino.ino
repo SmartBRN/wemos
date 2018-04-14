@@ -66,6 +66,8 @@ ESP8266WebServer server(80);
 void setupPins() {
   pinMode(PIN_RELAY_0, OUTPUT);
   pinMode(PIN_RELAY_1, OUTPUT);
+  digitalWrite(PIN_RELAY_0, HIGH);
+  digitalWrite(PIN_RELAY_1, HIGH);
   #ifdef MEASURE_GAS
   pinMode(PIN_FC22, INPUT);
   #endif
@@ -135,7 +137,7 @@ void setupServer() {
 #endif
 
 String relayStateAsJson(int& id) {
-  if( id < 0 || id > numberOfRelays ) return "";
+  if( id < 0 || id >= numberOfRelays ) return "";
   String json;
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject(); 

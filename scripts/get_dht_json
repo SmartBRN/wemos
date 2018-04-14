@@ -1,2 +1,2 @@
 #!/bin/sh
-curl -s http://$1/json/relay\?id=$2
+curl -s http://$1/json/dht

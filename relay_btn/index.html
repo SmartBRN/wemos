@@ -1,0 +1,29 @@
+<html>
+<header>
+<title>title</title>
+<script
+  src="https://code.jquery.com/jquery-3.3.1.min.js"
+  integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+  crossorigin="anonymous"></script>
+</header>
+
+<body>
+  <input type="button" value="Relay0: enable" id="relay0">
+</body>
+
+
+<script>
+$('document').ready(function(){
+  $button = $('#relay0');  
+  state = "off";
+  
+  $button.click(function(){
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "url.php?id=0&state=" + state, true);
+    state = state === "off" ? "on" : "off";
+    $button.prop('value', "Relay0: " + (state === "on" ? "enable" : "disable"));
+    xhr.send();
+  });
+});
+</script>
+</html>
